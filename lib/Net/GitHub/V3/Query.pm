@@ -297,7 +297,31 @@ sub _make_request {
 
     return $res;
   } else {
-    my $res = $self->ua->request($req);
+    my $res;
+    my $count = 0;
+    do {
+      if( $count > 0 ){
+	      print STDERR ">>> There was an error on the previous request count $count error code: ". $res->code ." - sleeping and will retry\n";
+      }
+      sleep( int( rand( 10 ) ) * $count );
+
+      $res = $self->ua->request($req);
+
+      # If something has happened upstream and we've errored out
+      # This is going to randomly sleep for a bit, then try again
+      # this should follow a backoff like ethernet in general
+      # and we'll do so, arbitrarily, 5 times
+      $count++;
+   } while(
+      (
+        $res->code >= 500
+        &&
+        $res->code <= 504
+      )
+      &&
+      $count <= 5
+   ); # end do/while loop
+
     $self->_set_shared_cache( $req->uri, $res);
     return $res;
   }
